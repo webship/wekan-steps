@@ -84,8 +84,23 @@ When(/^(I |we )*open the card "([^"]*)"$/, async function (_who, title) {
 When(/^(I |we )*move the card to the list "([^"]*)"$/, async function (_who, list) {
   const panel = h.details(this);
   await h.actOrExplain('move the card', list, async () => {
-    await panel.locator('details.card-details-list-picker > summary').first().click({ timeout: h.budget(this) });
-    await panel.locator('.card-details-list-options [role="option"]').filter({ hasText: h.exactly(list) }).first().click({ timeout: h.budget(this) });
+    // The picker is a <details>. After a move the site draws the card's panel again, a moment later, and a picker
+    // opened before that is closed by it: the picker is opened (only when it is closed) and its list clicked, again,
+    // until the click lands.
+    const picker = panel.locator('details.card-details-list-picker').first();
+    await picker.waitFor({ state: 'visible', timeout: h.budget(this) });
+    const option = picker.locator('.card-details-list-options [role="option"]').filter({ hasText: h.exactly(list) }).first();
+    const deadline = Date.now() + h.budget(this);
+    for (;;) {
+      try {
+        if (!(await picker.evaluate((d) => d.open))) await picker.locator('summary').first().click({ timeout: 3000 });
+        await option.click({ timeout: 3000 });
+        break;
+      } catch (err) {
+        if (Date.now() > deadline) throw err;
+        await this.page.waitForTimeout(500);
+      }
+    }
     await panel.locator('details.card-details-list-picker > summary').filter({ hasText: h.exactly(list) }).first().waitFor({ state: 'visible', timeout: h.budget(this) });
   }, `The card's List picker offers the lists of its board; a read-only member has none. Is "${list}" a list of the board?`);
 });
