@@ -1,0 +1,65 @@
+{
+  "name": "@webship-js/wekan-steps",
+  "version": "2.0.0",
+  "description": "Cucumber step definitions for Wekan, the open-source kanban board, a pack for webship-js (Playwright and Cucumber): signing in and out and its refusal, a board and who may open it, its lists, one card (its comments, labels, assignee, checklist, creator and the time logged on it, a move to another list, archiving), a new card, the board's sprints, and what a read-only member of the board or someone it does not have may not do. Test content is made and removed through the site's own REST API, so a run leaves the site as it found it.",
+  "main": "tests/step-definitions/wekan-helpers.js",
+  "files": [
+    "tests/step-definitions/",
+    "tests/features/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "cucumber-js --config cucumber.js",
+    "test:dry": "cucumber-js --config cucumber.js --dry-run",
+    "test:examples": "node tests/check-examples.js",
+    "test:paths": "node tests/check-paths.js",
+    "test:must-fail": "node tests/check-must-fail.js",
+    "test:chromium": "BROWSER=chromium cucumber-js --config cucumber.js",
+    "test:firefox": "BROWSER=firefox cucumber-js --config cucumber.js",
+    "test:webkit": "BROWSER=webkit cucumber-js --config cucumber.js",
+    "test:headed": "HEADLESS=false cucumber-js --config cucumber.js",
+    "generate-reports": "generate-reports",
+    "test:fast": "SLOW_MO=0 cucumber-js --config cucumber.js"
+  },
+  "keywords": [
+    "webship-js",
+    "wekan",
+    "kanban",
+    "boards",
+    "cards",
+    "cucumber",
+    "cucumber-js",
+    "playwright",
+    "bdd",
+    "gherkin",
+    "step-definitions",
+    "e2e-testing"
+  ],
+  "author": "Webship.co",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webship/wekan-steps.git"
+  },
+  "bugs": {
+    "url": "https://github.com/webship/wekan-steps/issues"
+  },
+  "homepage": "https://github.com/webship/wekan-steps#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">= 24.0"
+  },
+  "peerDependencies": {
+    "webship-js": "^2.0.16"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.0",
+    "webship-js": "^2.0.17"
+  },
+  "overrides": {
+    "@cucumber/cucumber": "^12"
+  }
+}

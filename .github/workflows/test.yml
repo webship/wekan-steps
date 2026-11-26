@@ -1,0 +1,137 @@
+name: Test
+
+on:
+  push:
+    branches:
+      - 2.0.x
+  pull_request:
+    branches:
+      - 2.0.x
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# The runs of a pull request share a group, so a newer push cancels the run it supersedes. Every other run (a push to
+# 2.0.x, a run started by hand) gets a group of its own: it is never queued behind another run, and never cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  cucumber:
+    # A real site, built in a DDEV project on the runner: Wekan's own image on the project's own MongoDB 7, the
+    # accounts of the suite in their roles of the sample board, and the sample content. The suite runs twice, and after
+    # each run the site must hold what it held before; then the assertions that must fail; then the site's tidy must
+    # find nothing a run left.
+    name: wekan-steps test suite (Node.js ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # 24: the lowest Node.js the pack's engines field accepts. 26: the latest LTS release.
+        node: ['24', '26']
+    env:
+      HEADLESS: 'true'
+      FORCE_COLOR: '1'
+      SITE_DIR: ${{ github.workspace }}/../wekan-site
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check the JSDoc examples and feature steps against the step regexes
+        run: npm run test:examples
+
+      - name: Check that a feature named on the command line runs alone
+        run: npm run test:paths
+
+      - name: Run cucumber-js dry-run (ambiguity / undefined step check)
+        run: npx cucumber-js --dry-run
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Install DDEV
+        uses: ddev/github-action-setup-ddev@v1
+        with:
+          autostart: false
+
+      - name: Build the test site (Wekan on MongoDB 7, the accounts of the suite, the sample content)
+        run: .github/scripts/build-ddev-site.sh
+
+      - name: Check the site is the one cucumber.js runs against by default
+        run: |
+          DEFAULT_URL="$(LAUNCH_URL= node -e "console.log(require('./cucumber.js').default.worldParameters.launchUrl)")"
+          echo "Built: $LAUNCH_URL, default: $DEFAULT_URL"
+          test "${LAUNCH_URL%/}" = "$DEFAULT_URL"
+
+      - name: Count what the site holds (a run must leave it as it found it)
+        run: COUNTS_ONLY=1 .github/scripts/build-ddev-site.sh | tee "$RUNNER_TEMP/counts-built.txt"
+
+      - name: Run the test suite
+        run: npx cucumber-js
+
+      - name: Check the run left the site as it found it (accounts, lists, labels, members, cards, comments, checklists, sprints, time)
+        run: |
+          COUNTS_ONLY=1 .github/scripts/build-ddev-site.sh > "$RUNNER_TEMP/counts-run-1.txt"
+          diff -u "$RUNNER_TEMP/counts-built.txt" "$RUNNER_TEMP/counts-run-1.txt"
+
+      - name: Run the test suite again (it leaves the site as it found it)
+        run: npx cucumber-js
+
+      - name: Check the second run left the site as it found it
+        run: |
+          COUNTS_ONLY=1 .github/scripts/build-ddev-site.sh > "$RUNNER_TEMP/counts-run-2.txt"
+          diff -u "$RUNNER_TEMP/counts-built.txt" "$RUNNER_TEMP/counts-run-2.txt"
+
+      - name: Run the assertions that must fail
+        run: npm run test:must-fail
+
+      - name: Check the assertions that must fail changed nothing
+        run: |
+          COUNTS_ONLY=1 .github/scripts/build-ddev-site.sh > "$RUNNER_TEMP/counts-must-fail.txt"
+          diff -u "$RUNNER_TEMP/counts-built.txt" "$RUNNER_TEMP/counts-must-fail.txt"
+
+      - name: Check the site's tidy finds nothing a run left
+        run: |
+          TIDY_ONLY=1 .github/scripts/build-ddev-site.sh | tee "$RUNNER_TEMP/tidy.txt"
+          grep -q '^tidy: 0 card(s) and 0 comment(s)' "$RUNNER_TEMP/tidy.txt"
+
+      - name: Show the logs of Wekan and MongoDB
+        if: failure()
+        run: |
+          cd "$SITE_DIR"
+          ddev logs -s wekan --tail 300 < /dev/null || true
+          ddev logs -s mongo --tail 50 < /dev/null || true
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cucumber-report-node-${{ matrix.node }}
+          path: tests/reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Upload failure screenshots and videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-screenshots-node-${{ matrix.node }}
+          path: |
+            screenshots/
+            videos/
+          retention-days: 14
+          if-no-files-found: ignore
