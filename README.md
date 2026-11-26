@@ -251,6 +251,12 @@ Scrum planning is on, with Sprint 1 active and the first two cards in it. The fe
 never change it. The site script (`site/wekan-site.mjs`) and the services (`site/docker-compose.wekan.yaml`) are the
 ones of the Webship Workspace's Wekan plugin.
 
+The site script makes what Wekan's REST API does not have (the full names, a password given back, Scrum planning with
+Sprint 1, the half hour of logged time) through the methods Wekan's own screens call, which depend on the release the
+build pins (13.33). The build fails when the script could not make one of those parts (a line starting `WARNING:`),
+and it sets the member's password to another one and gives it back, so a new pin shows a break at once; the features
+read the full names, Sprint 1 and the logged time.
+
 ## The assertions that must fail
 
 `tests/must-fail/` holds scenarios that assert something that is not true on the test site; `npm run test:must-fail`

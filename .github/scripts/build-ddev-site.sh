@@ -27,13 +27,14 @@ MONGO_IMAGE='docker.io/library/mongo:7.0.48'
 PASSWORD='dD.123123ddd'
 
 # The payload of the site script, on its input: the site's administrator (its password from the site's folder) and the
-# accounts of the suite.
+# accounts of the suite; a first argument is another password for the member.
 payload() {
-  python3 - "${SITE_DIR}/wekan/admin" "${PASSWORD}" <<'PYEOF'
+  python3 - "${SITE_DIR}/wekan/admin" "${PASSWORD}" "${1:-}" <<'PYEOF'
 import base64, json, sys
 admin = open(sys.argv[1]).read().strip()
 password = sys.argv[2]
-rows = [{'login': login, 'mail': login + '@example.com', 'password': password, 'name': login.capitalize() + ' Test', 'role': role, 'action': ''}
+member = sys.argv[3] or password
+rows = [{'login': login, 'mail': login + '@example.com', 'password': member if login == 'member' else password, 'name': login.capitalize() + ' Test', 'role': role, 'action': ''}
         for login, role in [('owner', 'owner'), ('member', 'member'), ('reader', 'reader'), ('stranger', '')]]
 print(base64.b64encode(json.dumps({'admin': {'login': 'webmaster', 'password': admin}, 'rows': rows, 'login': ''}).encode()).decode())
 PYEOF
@@ -42,6 +43,19 @@ PYEOF
 # The site script, in the project's web container; its input reaches it.
 site() {
   ( cd "${SITE_DIR}" && ddev exec "cd /var/www/html && node wekan/wekan-site.mjs $*" )
+}
+
+# A verb of the site script that builds the site: what the script makes through Wekan's own methods (the full names, a
+# password given back, Scrum planning with Sprint 1, the logged time) depends on the pinned release, and a part it could
+# not make (a line starting "WARNING:") fails the build here, so a new pin shows a break at once.
+build() {
+  local out ;
+  out="$(site "$@")" || { printf '%s\n' "${out}" ; exit 1 ; } ;
+  printf '%s\n' "${out}" ;
+  if printf '%s\n' "${out}" | grep -q '^WARNING:' ; then
+    echo "The site script could not make a part of the site through Wekan's own methods on Wekan ${RELEASE} (above)." ;
+    exit 1 ;
+  fi
 }
 
 if [ "${COUNTS_ONLY:-}" = 1 ] ; then
@@ -95,13 +109,19 @@ done
 
 # The site's administrator as Wekan's first account (its password made for this site, never printed); then the
 # accounts of the suite and the sample content: the board Webship site, administered by owner, with member (a normal
-# member) and reader (a read-only member); stranger not on it.
-python3 - "${SITE_DIR}/wekan/admin" <<'PYEOF' | site install
+# member) and reader (a read-only member); stranger not on it. Each part the site script makes through Wekan's own
+# methods is checked here, or by the features that read it.
+python3 - "${SITE_DIR}/wekan/admin" <<'PYEOF' | build install
 import base64, json, sys
 print(base64.b64encode(json.dumps({'login': 'webmaster', 'mail': 'webmaster@example.com', 'password': open(sys.argv[1]).read().strip(), 'name': 'Webmaster Workspace'}).encode()).decode())
 PYEOF
-payload | site accounts
-payload | site content
+payload | build accounts
+# A password given back, by Wekan's own method: the member's is set to another one, then the accounts are made again.
+payload "Aa1.$(secret 16)" | build accounts > /dev/null
+given="$(payload | build accounts)"
+printf '%s\n' "${given}" | grep -q '^  member: its password given back' || { printf '%s\n' "${given}" ; echo "The member's password was not given back." ; exit 1 ; }
+echo "The member's password was given back."
+payload | build content
 
 echo "The site: https://${NAME}.ddev.site (Wekan ${RELEASE} on MongoDB 7)"
 [ -n "${GITHUB_ENV:-}" ] && echo "LAUNCH_URL=https://${NAME}.ddev.site" >> "${GITHUB_ENV}"
