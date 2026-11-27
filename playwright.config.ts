@@ -4,11 +4,12 @@ type BrowserName = 'chromium' | 'firefox' | 'webkit';
 
 const browser = (process.env.BROWSER || 'chromium') as BrowserName;
 
+// No --disable-web-security: a browser started with it signs in to Wekan at 127.0.0.1 and over https only. At a
+// plain-http address of another machine its login cookie never arrives, and Wekan refuses its posts with 403.
 const chromiumArgs: string[] = [
   '--no-sandbox',
   '--disable-dev-shm-usage',
   '--disable-setuid-sandbox',
-  '--disable-web-security',
   '--ignore-certificate-errors',
   '--disable-extensions',
   '--incognito',
