@@ -1,6 +1,6 @@
 {
   "name": "@webship-js/wekan-steps",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Cucumber step definitions for Wekan, the open-source kanban board, a pack for webship-js (Playwright and Cucumber): signing in and out and its refusal, a board and who may open it, its lists, one card (its comments, labels, assignee, checklist, creator and the time logged on it, a move to another list, archiving), a new card, the board's sprints, and what a read-only member of the board or someone it does not have may not do. Test content is made and removed through the site's own REST API, so a run leaves the site as it found it.",
   "main": "tests/step-definitions/wekan-helpers.js",
   "files": [
